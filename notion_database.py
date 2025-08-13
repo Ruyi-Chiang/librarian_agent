@@ -1,6 +1,8 @@
+import os
+
 import requests
 from dotenv import load_dotenv
-import os
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -14,6 +16,7 @@ headers = {
     "Notion-Version": "2022-06-28",
 }
 
+
 def create_page(data: dict):
     create_url = "https://api.notion.com/v1/pages"
 
@@ -22,6 +25,7 @@ def create_page(data: dict):
     res = requests.post(create_url, headers=headers, json=payload)
     # print(res.status_code)
     return res
+
 
 def get_pages(num_pages=None):
     """
@@ -51,5 +55,6 @@ def get_pages(num_pages=None):
         results.extend(data["results"])
 
     return results
+
 
 print(get_pages())

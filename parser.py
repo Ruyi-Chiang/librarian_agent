@@ -1,41 +1,42 @@
-
-from langchain.tools import Tool
-import requests
-from bs4 import BeautifulSoup
 import os
 
+import requests
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from langchain.agents import initialize_agent
+from langchain.tools import Tool
+from langchain_community.llms import OpenAI
+
 # Load environment variables
 load_dotenv()
 
 # Configure OpenAI API
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+
 def get_call_number(title: str) -> str:
-    search_url = f"https://sunnyvale.bibliocommons.com/v2/search?query={title.replace(' ', '+')}"
+    search_url = (
+        f"https://sunnyvale.bibliocommons.com/v2/search?query={title.replace(' ', '+')}"
+    )
     r = requests.get(search_url)
-    soup = BeautifulSoup(r.text, 'html.parser')
-    
+    soup = BeautifulSoup(r.text, "html.parser")
+
     # Modify this line based on actual HTML structure
     call_number = soup.select_one(".call-number").text.strip()
     return call_number if call_number else "Call number not found."
 
+
 library_tool = Tool(
     name="LibraryCallNumberSearch",
     func=get_call_number,
-    description="Use this to find the call number of a book at the library using its title."
+    description="Use this to find the call number of a book at the library using its title.",
 )
 
-from langchain.agents import initialize_agent
-from langchain_community.llms import OpenAI
 
 llm = OpenAI(temperature=0)
 
 agent = initialize_agent(
-    tools=[library_tool],
-    llm=llm,
-    agent="zero-shot-react-description",
-    verbose=True
+    tools=[library_tool], llm=llm, agent="zero-shot-react-description", verbose=True
 )
 
 # Run the agent

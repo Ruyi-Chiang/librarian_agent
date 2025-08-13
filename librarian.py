@@ -1,18 +1,16 @@
 import os
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph import MessagesState
-from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.tools import tool
-from datetime import datetime, timezone
-
-
 import urllib.parse
+from datetime import datetime
+
 import requests
-from requests import Response
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from langchain_core.messages import SystemMessage
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+from requests import Response
 
 # Load environment variables from .env file
 load_dotenv()
@@ -45,28 +43,30 @@ def create_notion_page(data: dict) -> Response:
     # Debug: Print response details
     print(f"Status: {res.status_code}")
     print(f"Response: {res.text}")
-    
+
     if res.status_code != 200:
         print(f"Error: {res.status_code} - {res.text}")
     return res
+
 
 @tool
 def write_to_notion(
     book_title: str,
     call_number: str,
     status: str,
-    location: str = 'Sunnyvale Public Library',
-    date_str: str = None) -> str:
+    location: str = "Sunnyvale Public Library",
+    date_str: str = None,
+) -> str:
     """
     Write book information to Notion database.
-    
+
     Args:
         book_title: The title of the book
         call_number: The library call number
         location: The name of the library
         date_str: The date call the function on
         status: The availability status, must be among "Available now", "Not Available", "All copies in use".
-        
+
     Returns:
         A message confirming the data was written to Notion
     """
@@ -75,32 +75,27 @@ def write_to_notion(
             date_str = datetime.now().strftime("%Y-%m-%d")
 
         notion_data = {
-            "Title": {
-                "title": [{"text": {"content": book_title}}]
-            },
+            "Title": {"title": [{"text": {"content": book_title}}]},
             "Status": {
-                "status": {"name": status}  # must match an existing Status option in Notion
+                "status": {
+                    "name": status
+                }  # must match an existing Status option in Notion
             },
-            "Call Number": {
-                "rich_text": [{"text": {"content": call_number}}]
-            },
-            "Library Location": {
-                "rich_text": [{"text": {"content": location}}]
-            },
-            "Date": {
-                "date": {"start": date_str, "end": None}
-            }
+            "Call Number": {"rich_text": [{"text": {"content": call_number}}]},
+            "Library Location": {"rich_text": [{"text": {"content": location}}]},
+            "Date": {"date": {"start": date_str, "end": None}},
         }
         # Call the Notion API
         response = create_notion_page(notion_data)
-        
+
         if response.status_code == 200:
             return f"Successfully added '{book_title}' to Notion database. Call number: {call_number}, Status: {status}"
         else:
             return f"Failed to add to Notion. Status: {response.status_code}, Response: {response.text}"
-            
+
     except Exception as e:
         return f"Error writing to Notion: {str(e)}"
+
 
 # Custom Tools for library catalog searching
 def search_library_page(title: str) -> str:
@@ -124,16 +119,21 @@ def search_library_page(title: str) -> str:
     # Get all visible text inside the result card
     return result_card.get_text(separator="\n", strip=True)
 
+
 # Initialize LLM with tools
 llm = ChatOpenAI(model="gpt-4o")
 llm_with_tools = llm.bind_tools([search_library_page, write_to_notion])
 
+
 # Node function
 def tool_calling_llm(state: MessagesState):
     input_messages = [
-        SystemMessage(content="""You're a librarian good at searching library catalog. You help users to keep track of the books they've searched in a notion database. Remember that there are only 3 status are allowed for a book status: "Available now", "Not avaliable" and "All copies in use". When the search result is written to Notion successfully, stop.""")
-        ]
+        SystemMessage(
+            content="""You're a librarian good at searching library catalog. You help users to keep track of the books they've searched in a notion database. Remember that there are only 3 status are allowed for a book status: "Available now", "Not avaliable" and "All copies in use". When the search result is written to Notion successfully, stop."""
+        )
+    ]
     return {"messages": [llm_with_tools.invoke(input_messages + state["messages"])]}
+
 
 # Build graph
 builder = StateGraph(MessagesState)
