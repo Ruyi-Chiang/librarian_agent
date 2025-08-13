@@ -1,5 +1,14 @@
 # AI Library Assistant: Automated Book Tracking System
+https://www.loom.com/share/fb11f3ca567b4ffe9f29b81c4a6a6b72?sid=35023d08-a953-4c87-b049-ecde0ceacafe
 
+<div>
+    <a href="https://www.loom.com/share/fb11f3ca567b4ffe9f29b81c4a6a6b72">
+      <p>Demonstrating a Liberian Agent in Action with Lengbrev's Studio - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/fb11f3ca567b4ffe9f29b81c4a6a6b72">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/fb11f3ca567b4ffe9f29b81c4a6a6b72-c2a9e29b698c38a2-full-play.gif">
+    </a>
+  </div>
 ## Problem
 Finding and tracking books in libraries requires multiple manual steps:
 - Searching library catalogs
@@ -22,6 +31,9 @@ Simply ask the assistant for any book, and it handles everything from search to 
 - **Notion API**: Stores book information in a structured database
 - **Webpage Parsing Library**: Extracts book details from library catalog pages
 - **GPT-4o**: Powers natural language understanding and intelligent responses
+### LangGraph Flow
+  <img width="586" height="447" alt="image" src="https://github.com/user-attachments/assets/c31d5982-b49c-46b8-8b3c-4cf150b6f7fd" />
+
 
 ## Results
 - **Faster Book Discovery**: Get book information in seconds instead of minutes
