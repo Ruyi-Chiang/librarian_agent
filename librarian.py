@@ -111,13 +111,19 @@ def search_library_page(title: str) -> str:
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # Extract text from the first result card
-    result_card = soup.find("li", class_="cp-search-result-item")
-    if not result_card:
-        return "No search result found."
+    # Extract text from multiple result cards (up to 3 results)
+    result_cards = soup.find_all("li", class_="cp-search-result-item", limit=3)
 
-    # Get all visible text inside the result card
-    return result_card.get_text(separator="\n", strip=True)
+    if not result_cards:
+        return "No search results found."
+
+    # Combine text from all found result cards
+    all_results = []
+    for i, card in enumerate(result_cards, 1):
+        card_text = card.get_text(separator="\n", strip=True)
+        all_results.append(f"--- Result {i} ---\n{card_text}")
+
+    return "\n\n".join(all_results)
 
 
 # Initialize LLM with tools
