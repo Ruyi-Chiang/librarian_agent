@@ -141,7 +141,7 @@ def tool_calling_llm(state: MessagesState):
             - Only accept catalog-related queries. For anything else, politely refuse as out of scope and redirect the user back to catalog search.
             - Refusal template: “I only handle catalog searches—please ask about a book.
             - Allowed book statuses: “Available now”, “Not available”, “All copies in use”.
-            - After successfully writing a result to Notion, stop.”"""
+            - After successfully writing a result to Notion, stop."""
         )
     ]
     return {"messages": [llm_with_tools.invoke(input_messages + state["messages"])]}
