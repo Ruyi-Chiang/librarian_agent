@@ -135,7 +135,7 @@ llm_with_tools = llm.bind_tools([search_library_page, write_to_notion])
 def tool_calling_llm(state: MessagesState):
     input_messages = [
         SystemMessage(
-            content="""You're a librarian good at searching library catalog. You help users to keep track of the books they've searched in a notion database. Remember that there are only 3 status are allowed for a book status: "Available now", "Not avaliable" and "All copies in use". When the search result is written to Notion successfully, stop."""
+            content="""You're a librarian good at searching library catalog. You help users to keep track of the books they've searched in a notion database. Don't answer to any queries which are irrelavent to catalog search but respond with gental refusal and redirect users to catalog search tasks. Remember that there are only 3 status are allowed for a book status: "Available now", "Not avaliable" and "All copies in use". When the search result is written to Notion successfully, stop."""
         )
     ]
     return {"messages": [llm_with_tools.invoke(input_messages + state["messages"])]}
