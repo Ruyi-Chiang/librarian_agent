@@ -99,12 +99,24 @@ def write_to_notion(
 
 
 # Custom Tools for library catalog searching
-def search_library_page(title: str) -> str:
+def search_library_page(query: str) -> str:
     """
-    Searches the Sunnyvale library and returns visible text from the top search result for the LLM to interpret.
+    Searches the Sunnyvale library catalog using smart search and returns visible text from the top search results.
+
+    The smart search can handle various types of queries including:
+    - Book titles (e.g., "The Great Gatsby", "Never Search Alone")
+    - Author names (e.g., "Adam Grant", "F. Scott Fitzgerald" or "Fitzgerald")
+    - Keywords or subjects (e.g., "mystery", "science fiction", "cooking")
+    - Partial titles or phrases
+
+    Args:
+        query: Search term that can be a title, author name, keyword, or any other searchable text
+
+    Returns:
+        str: Visible text from up to 3 search result cards, or error message if search fails
     """
-    encoded_title = urllib.parse.quote(title)
-    search_url = f"https://sunnyvale.bibliocommons.com/v2/search?query={encoded_title}&searchType=smart"
+    encoded_query = urllib.parse.quote(query)
+    search_url = f"https://sunnyvale.bibliocommons.com/v2/search?query={encoded_query}&searchType=smart"
     response = requests.get(search_url)
 
     if response.status_code != 200:
