@@ -5,7 +5,6 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -138,10 +137,6 @@ def search_library_page(query: str) -> str:
 
     return "\n\n".join(all_results)
 
-
-# Router Agent Setup -- Initialize cheaper LLM
-# Ollama (local) – Llama 3.1 8B
-cheap_llm = ChatOllama(model="llama3.1:8b-instruct", temperature=0)
 
 # Worker Agent Setup -- Initialize LLM with tools
 llm = ChatOpenAI(model="gpt-4o")
