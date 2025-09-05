@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -156,9 +156,19 @@ def tool_calling_llm(state: MessagesState):
             - After successfully writing a result to Notion, stop."""
         )
     ]
+
     return {"messages": [llm_with_tools.invoke(input_messages + state["messages"])]}
 
 
+# TODO: Research how to initialize a conversation in LangGraph
+# https://github.com/langchain-ai/langgraph/discussions/919
+initial_state = {
+    "messages": [
+        AIMessage(
+            "Hi, I'm your AI librarian searching catalog for Sunnyvale Public Library. What book title are you looking for today?"
+        )
+    ]
+}
 # Build graph
 builder = StateGraph(MessagesState)
 builder.add_node("tool_calling_llm", tool_calling_llm)
