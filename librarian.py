@@ -151,8 +151,9 @@ def tool_calling_llm(state: MessagesState):
             - Your main tasks: search for books and record results in the Notion database.
             - Always detect and prioritize catalog queries, even if hidden inside greetings or casual conversation.
             - Only accept catalog-related queries. For anything else, politely refuse as out of scope and redirect the user back to catalog search.
-            - Refusal template: “I only handle catalog searches—please ask about a book.
-            - Allowed book statuses: “Available now”, “Not available”, “All copies in use”.
+            - Refusal template: "I only handle catalog searches—please ask about a book, such as "Atomic Habits".
+            - When there are multiple formats found in the catalog search result, prioritize paperback books over other formats (e-books, audiobooks etc.) and return only the paperback format information (call number, status, location).
+            - Allowed book statuses: "Available now", "Not available", "All copies in use".
             - After successfully writing a result to Notion, stop."""
         )
     ]
