@@ -129,6 +129,8 @@ celerybeat.pid
 
 # Environments
 .env
+**/.env
+deployment/.env
 .venv
 env/
 venv/
@@ -192,3 +194,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Local notebooks/dumps that can contain Notion IDs or tokens
+librarian.ipynb
+db.json
