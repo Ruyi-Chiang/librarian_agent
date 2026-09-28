@@ -2,6 +2,8 @@
   
 https://www.loom.com/share/fb11f3ca567b4ffe9f29b81c4a6a6b72?sid=3ee90985-1da4-4c31-99c9-d4e7752cc6ea
 
+There is **no public web demo**. This repo is a LangGraph agent (`langgraph.json` → `librarian.py:graph`). Run it locally with [LangGraph Studio](https://docs.langchain.com/langgraph-platform/langgraph-studio) (`langgraph dev` from the repo root after setting `OPENAI_API_KEY`, `NOTION_TOKEN`, and `NOTION_DATABASE_ID` in `.env`). The Loom link above is a recorded walkthrough, not a live site.
+
 ## Problem
 Finding and tracking books in libraries requires multiple manual steps:
 - Searching library catalogs
