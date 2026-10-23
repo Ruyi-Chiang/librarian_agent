@@ -7,16 +7,6 @@ set -euo pipefail
 prepare_scratch
 cd "${REPO_ROOT}"
 
-if [[ ! -x "${PY}" ]]; then
-  rm -rf "${VERIFY_VENV}"
-  python3 -m venv "${VERIFY_VENV}"
-elif ! "${PY}" -c 'import pip' >/dev/null 2>&1; then
-  rm -rf "${VERIFY_VENV}"
-  python3 -m venv "${VERIFY_VENV}"
-fi
-"${PY}" -m pip install --upgrade pip >/dev/null
-"${PY}" -m pip install -r "${SKILL_DIR}/helpers/requirements.txt"
-
 # Never inherit a real Notion integration into the child. Dummy values plus the
 # sitecustomize guard mean api.notion.com is not contacted.
 export NOTION_TOKEN="secret_VERIFY_NOT_A_REAL_TOKEN"
@@ -32,6 +22,34 @@ fi
 export VERIFY_NOTION_GUARD_LOG="${VERIFY_SCRATCH}/notion-guard.jsonl"
 export PYTHONPATH="${SKILL_DIR}/helpers${PYTHONPATH:+:${PYTHONPATH}}"
 
+# Reuse a live server before allocating or writing a new port.
+if [[ -f "${VERIFY_SCRATCH}/langgraph.pid" ]]; then
+  old_pid="$(tr -d '[:space:]' < "${VERIFY_SCRATCH}/langgraph.pid")"
+  if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" 2>/dev/null; then
+    recorded=""
+    if [[ -f "${VERIFY_SCRATCH}/langgraph.port" ]]; then
+      recorded="$(tr -d '[:space:]' < "${VERIFY_SCRATCH}/langgraph.port")"
+    elif [[ -f "${VERIFY_SCRATCH}/launch.env" ]]; then
+      recorded="$(sed -n 's/^VERIFY_LANGGRAPH_PORT=//p' "${VERIFY_SCRATCH}/launch.env" | tail -n 1 | tr -d '[:space:]')"
+    fi
+    if [[ -n "${recorded}" ]]; then
+      export VERIFY_LANGGRAPH_PORT="${recorded}"
+    fi
+    echo "launch_ok reused_pid=${old_pid} url=$(langgraph_url)"
+    exit 0
+  fi
+fi
+
+if [[ ! -x "${PY}" ]]; then
+  rm -rf "${VERIFY_VENV}"
+  python3 -m venv "${VERIFY_VENV}"
+elif ! "${PY}" -c 'import pip' >/dev/null 2>&1; then
+  rm -rf "${VERIFY_VENV}"
+  python3 -m venv "${VERIFY_VENV}"
+fi
+"${PY}" -m pip install --upgrade pip >/dev/null
+"${PY}" -m pip install -r "${SKILL_DIR}/helpers/requirements.txt"
+
 if [[ -z "${VERIFY_LANGGRAPH_PORT:-}" ]]; then
   VERIFY_LANGGRAPH_PORT="$("${PY}" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 fi
@@ -46,14 +64,6 @@ printf '%s\n' "${VERIFY_LANGGRAPH_PORT}" > "${VERIFY_SCRATCH}/langgraph.port"
   echo "VERIFY_MOCK_LLM=${VERIFY_MOCK_LLM:-0}"
   echo "VERIFY_NOTION_GUARD_LOG=${VERIFY_NOTION_GUARD_LOG}"
 } > "${VERIFY_SCRATCH}/launch.env"
-
-if [[ -f "${VERIFY_SCRATCH}/langgraph.pid" ]]; then
-  old_pid="$(tr -d '[:space:]' < "${VERIFY_SCRATCH}/langgraph.pid")"
-  if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" 2>/dev/null; then
-    echo "launch_ok reused_pid=${old_pid} url=$(langgraph_url)"
-    exit 0
-  fi
-fi
 
 : > "${VERIFY_SCRATCH}/langgraph.stdout.log"
 : > "${VERIFY_SCRATCH}/langgraph.stderr.log"

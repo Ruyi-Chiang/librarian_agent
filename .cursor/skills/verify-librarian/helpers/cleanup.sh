@@ -4,7 +4,8 @@
 set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-require_isolated_scratch || true
+# Fail closed: a rejected isolation check must not reach rm -rf.
+require_isolated_scratch
 if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
   echo "cleanup: no scratch at ${VERIFY_SCRATCH}"
   echo "evidence_kept=${VERIFY_EVIDENCE}"
