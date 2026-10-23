@@ -198,3 +198,6 @@ cython_debug/
 # Local notebooks/dumps that can contain Notion IDs or tokens
 librarian.ipynb
 db.json
+
+# Verification run artifacts (commit the skill summary only)
+evidence/runs/
