@@ -1,3 +1,4 @@
+import logging
 import os
 import urllib.parse
 from datetime import datetime
@@ -11,6 +12,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from requests import Response
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,18 +37,9 @@ def create_notion_page(data: dict) -> Response:
 
     payload = {"parent": {"database_id": DATABASE_ID}, "properties": data}
 
-    # Debug: Print payload
-    print("Payload:", payload)
-    print("Headers:", headers)
-
     res = requests.post(create_url, headers=headers, json=payload)
-    # print(res.status_code)
-    # Debug: Print response details
-    print(f"Status: {res.status_code}")
-    print(f"Response: {res.text}")
-
-    if res.status_code != 200:
-        print(f"Error: {res.status_code} - {res.text}")
+    # Do not log headers, payload, or response body: headers carry the Notion token.
+    logger.info("Notion page create status=%s", res.status_code)
     return res
 
 
