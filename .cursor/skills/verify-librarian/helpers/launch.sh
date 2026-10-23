@@ -8,6 +8,10 @@ prepare_scratch
 cd "${REPO_ROOT}"
 
 if [[ ! -x "${PY}" ]]; then
+  rm -rf "${VERIFY_VENV}"
+  python3 -m venv "${VERIFY_VENV}"
+elif ! "${PY}" -c 'import pip' >/dev/null 2>&1; then
+  rm -rf "${VERIFY_VENV}"
   python3 -m venv "${VERIFY_VENV}"
 fi
 "${PY}" -m pip install --upgrade pip >/dev/null

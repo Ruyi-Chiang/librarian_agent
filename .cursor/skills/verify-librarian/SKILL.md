@@ -43,6 +43,8 @@ Long-lived local API. Launch installs an isolated venv (if needed), opens scratc
 
 `launch.sh` mints a new `VERIFY_RUN_ID` unless one is already exported, then writes `/tmp/verify-librarian.last-run`. Later `doctor.sh` / `drive.sh` / `cleanup.sh` reuse that id when unset. Concurrent runs must export distinct `VERIFY_RUN_ID` values.
 
+Host note: `python3 -m venv` must work. On Debian/Ubuntu that is the `python3-venv` / `python3.12-venv` package. A stand-in Cloud image that lacks it must install that package; a laptop with a working venv does not.
+
 What it does:
 
 1. Creates `VERIFY_SCRATCH=/tmp/verify-librarian-$VERIFY_RUN_ID` and `evidence/runs/$VERIFY_RUN_ID/` at the repo root.
@@ -71,7 +73,7 @@ Pass means all of:
 - the pid in `$VERIFY_SCRATCH/langgraph.pid` is alive
 - `GET /ok` on this run's URL succeeds
 - `/assistants` or `/info` is reachable and names `librarian`
-- compiled graph still has both `tools -> tool_calling_llm` and `tools -> END`
+- `librarian.py` still contains both `tools -> tool_calling_llm` and `tools -> END`; compiled `get_graph()` still lists the loop edge
 
 If doctor fails, relaunch or stop. Do not "fix" it by pointing the graph at a real Notion database.
 

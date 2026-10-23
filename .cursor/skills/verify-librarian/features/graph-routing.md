@@ -22,14 +22,14 @@ Preconditions:
 - `helpers/launch.sh` completed; `helpers/doctor.sh` printed `doctor_ok`.
 - Notion HTTP is mocked. The model is live when a real `OPENAI_API_KEY` exists, otherwise `VERIFY_MOCK_LLM=1`.
 
-- **Compiled edges.** `helpers/drive.sh graph-routing` first runs `helpers/inspect_graph.py` (ChatOpenAI patched, no model call). Exit `0`. JSON has `has_tools_to_llm: true` and `has_tools_to_end: true`. `tools_targets` includes `tool_calling_llm` and `__end__`.
+- **Source + compiled edges.** `helpers/drive.sh graph-routing` first runs `helpers/inspect_graph.py` (ChatOpenAI patched, no model call). Exit `0`. JSON has `source.contradictory_tools_edges: true` (`has_tools_to_llm` and `has_tools_to_end` both true from `librarian.py` text). `compiled_has_tools_to_llm` is true. `compiled_has_tools_to_end` may be false: current `get_graph()` only lists `tools -> tool_calling_llm`.
 - **Live run.** The same helper POSTs `Please find The Mom Test at the library` to `/threads/{id}/runs/wait`. Exit `0`. `routing_trace` contains `llm->tools:...`.
-- **Proof.** `graph-routing-edges.stdout.txt` and `graph-routing-run.stdout.txt` under `evidence/runs/<id>/`. Record whether the live run also showed a post-tool model message (`llm->end_or_text` after a `tools:` event) or stopped at `tools` because of `tools -> END`. Either observation is valid current behavior; do not rewrite the graph to make the trace prettier.
+- **Proof.** `graph-routing-edges.stdout.txt` and `graph-routing-run.stdout.txt` under `evidence/runs/<id>/`. Record whether the live run also showed a post-tool model message (`llm->end_or_text` after a `tools:` event). Today's observed path is tools back to the LLM, then `tools_condition` to `END` when the model stops calling tools. Do not rewrite the graph to make the trace prettier.
 
 ## Gotchas
 
 - `librarian.py` contains both `builder.add_edge("tools", "tool_calling_llm")` and `builder.add_edge("tools", END)`. That contradiction is in-scope to **document**, out of scope to fix.
-- Because both edges are unconditional, a live run may end after the first tool burst even though the loop edge exists. Report what the wait payload did. Never weaken the edge assertions.
+- Current `graph.get_graph()` only emits `tools -> tool_calling_llm`. The `tools -> END` line is still in source. Live runs follow the loop (another model step after tools) and then end via `tools_condition` on `tool_calling_llm`. Report both the source pair and the compiled/live view. Never delete the extra `add_edge` to make the inspector greener.
 - `tools_condition` is the only conditional router, and it sits on `tool_calling_llm`, not on `tools`.
 - If no usable model key is available, the scripted LLM still emits `search_library_page` then (if the loop runs) `write_to_notion`. The write hits the Notion mock, not `api.notion.com`.
 - Inspecting `graph.get_graph()` in-process is how we pin the edges. It is not a substitute for the live `/runs/wait` drive.
