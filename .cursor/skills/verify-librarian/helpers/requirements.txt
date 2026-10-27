@@ -1,0 +1,12 @@
+beautifulsoup4
+langchain
+langchain-community
+langchain-core
+langchain-openai
+langgraph
+langgraph-cli[inmem]
+langgraph-sdk
+openai
+pytest
+python-dotenv
+requests
