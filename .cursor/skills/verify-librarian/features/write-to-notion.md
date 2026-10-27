@@ -1,13 +1,13 @@
 # Write to Notion
 
-`write_to_notion` (a LangChain tool on `librarian.py`) builds a Book Tracker page payload and POSTs it through `create_notion_page`. Allowed status names in the tool docstring are `Available now`, `Not Available`, and `All copies in use`. The system prompt also says `Not available`. This feature drives **each** of those strings through pytest with `requests` mocked.
+`write_to_notion` (a LangChain tool on `librarian.py`) builds a Book Tracker page payload and POSTs it through `create_notion_page`. Allowed status names are the `BookStatus` Literal: `Available now`, `Not available`, and `All copies in use`. The tool signature, docstring, and system prompt use that same set. This feature drives **each** allowed string through pytest with `requests` mocked, and rejects invalid names (including the old `Not Available` spelling).
 
 ## Sub-features
 
 - `status-available-now` writes `Status.status.name = Available now`.
-- `status-not-available` writes `Not available` (prompt spelling).
-- `status-not-available-capital` writes `Not Available` (docstring spelling).
+- `status-not-available` writes `Not available`.
 - `status-all-copies-in-use` writes `All copies in use`.
+- `status-invalid` rejects names outside the Literal (including `Not Available`) without posting.
 - `create-wrapper` is `create_notion_page` posting to the pages endpoint with the dummy parent database id.
 
 ## How to get to it (user POV)
@@ -31,7 +31,7 @@ Preconditions:
 ## Gotchas
 
 - HARD RULE: never call `api.notion.com` and never write to Ruyi's real Notion. A live write is allowed only against a dedicated test database she provides; none exists today.
-- Prompt and docstring disagree on `Not available` vs `Not Available`. Drive both. Do not collapse them into one case.
+- Prompt, docstring, and `BookStatus` must use one spelling: `Not available`. `Not Available` is invalid.
 - `librarian.py` concatenates `NOTION_TOKEN` at import. Tests must set a dummy token before import.
 - `write_to_notion` is a `@tool`; call `write_to_notion.func` (or the attribute the existing leak test uses) so the test invokes the raw function.
 - Success is `response.status_code == 200` from the mock, not a page id appearing in Notion.
