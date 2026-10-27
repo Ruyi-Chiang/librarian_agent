@@ -4,19 +4,15 @@
 set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-# Fail closed: a rejected isolation check must not reach rm -rf.
+# Fail closed: rejected isolation or a marker/run-id mismatch must not
+# reach kill or rm -rf. Missing scratch is a no-op.
 require_isolated_scratch
 if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
   echo "cleanup: no scratch at ${VERIFY_SCRATCH}"
   echo "evidence_kept=${VERIFY_EVIDENCE}"
   exit 0
 fi
-
-if [[ ! -f "${RUN_MARKER}" ]]; then
-  echo "cleanup: refusing to delete VERIFY_SCRATCH=${VERIFY_SCRATCH} (no run marker)" >&2
-  echo "evidence_kept=${VERIFY_EVIDENCE}"
-  exit 2
-fi
+require_our_scratch
 
 pid_file="${VERIFY_SCRATCH}/langgraph.pid"
 if [[ -f "${pid_file}" ]]; then

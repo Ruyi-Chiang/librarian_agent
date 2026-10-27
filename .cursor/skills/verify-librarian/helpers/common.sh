@@ -99,7 +99,7 @@ require_our_scratch() {
   local existing
   existing="$(scratch_marker_run_id)"
   if [[ -z "${existing}" ]]; then
-    echo "doctor/drive expected ${RUN_MARKER} from launch; run helpers/launch.sh first" >&2
+    echo "refuse: expected ${RUN_MARKER} from launch; run helpers/launch.sh first" >&2
     return 2
   fi
   if [[ "${existing}" != "${VERIFY_RUN_ID}" ]]; then

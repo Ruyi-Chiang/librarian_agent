@@ -41,7 +41,7 @@ Long-lived local API. Launch installs an isolated venv (if needed), opens scratc
 .cursor/skills/verify-librarian/helpers/launch.sh
 ```
 
-`launch.sh` mints a new `VERIFY_RUN_ID` unless one is already exported, then writes `/tmp/verify-librarian.last-run`. Later `doctor.sh` / `drive.sh` / `cleanup.sh` reuse that id when unset. Concurrent runs must export distinct `VERIFY_RUN_ID` values. A second launch against a live pid restores the recorded port from `langgraph.port` and does not allocate a new one. `cleanup.sh` refuses (and does not `rm -rf`) when scratch isolation fails.
+`launch.sh` mints a new `VERIFY_RUN_ID` unless one is already exported, then writes `/tmp/verify-librarian.last-run`. Later `doctor.sh` / `drive.sh` / `cleanup.sh` reuse that id when unset. Concurrent runs must export distinct `VERIFY_RUN_ID` values. A second launch against a live pid restores the recorded port from `langgraph.port` and does not allocate a new one. `cleanup.sh` refuses (and does not kill or `rm -rf`) when scratch isolation fails or the scratch marker's run ID does not match `VERIFY_RUN_ID`.
 
 Host note: `python3 -m venv` must work. On Debian/Ubuntu that is the `python3-venv` / `python3.12-venv` package. A stand-in Cloud image that lacks it must install that package; a laptop with a working venv does not.
 
