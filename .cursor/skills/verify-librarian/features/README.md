@@ -37,7 +37,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [Parse a book request](./parse-book-request.md) — **live** `langgraph dev` (Notion mocked). Catalog parse via the graph tool; `parser.py` is the older standalone script.
-- [Graph routing](./graph-routing.md) — **live** `langgraph dev` (Notion mocked). LLM to tools, tools back to the LLM, and the end. Documents the contradictory `tools -> END` edge.
+- [Graph routing](./graph-routing.md) — **live** `langgraph dev` (Notion mocked). LLM to tools, tools back to the LLM, and END when the LLM stops calling tools.
 - [Write to Notion](./write-to-notion.md) — **pytest**, `requests` mocked. One write per status value.
 - [Query Notion pages](./get-pages.md) — **pytest**, `requests` mocked. `notion_database.get_pages`.
 - [No token leak](./no-token-leak.md) — **pytest**, `requests` mocked. `tests/test_no_token_leak.py`.

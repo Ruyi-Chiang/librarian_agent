@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from requests import Response
 
@@ -176,6 +176,5 @@ builder.add_conditional_edges(
     tools_condition,
 )
 builder.add_edge("tools", "tool_calling_llm")
-builder.add_edge("tools", END)
 
 graph = builder.compile()

@@ -72,14 +72,17 @@ def main() -> int:
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
 
-    if not source["contradictory_tools_edges"]:
-        print(
-            "source is missing the current tools -> tool_calling_llm and/or tools -> END add_edge",
-            file=sys.stderr,
-        )
+    if not source["has_tools_to_llm"]:
+        print("source is missing tools -> tool_calling_llm add_edge", file=sys.stderr)
+        return 2
+    if source["has_tools_to_end"]:
+        print("source still has the contradictory tools -> END add_edge", file=sys.stderr)
         return 2
     if not payload["compiled_has_tools_to_llm"]:
         print("compiled graph missing tools -> tool_calling_llm", file=sys.stderr)
+        return 2
+    if payload["compiled_has_tools_to_end"]:
+        print("compiled graph still has tools -> END", file=sys.stderr)
         return 2
     return 0
 
