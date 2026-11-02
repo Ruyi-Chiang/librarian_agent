@@ -2,6 +2,7 @@ import logging
 import os
 import urllib.parse
 from datetime import datetime
+from typing import Literal, get_args
 
 import requests
 from bs4 import BeautifulSoup
@@ -29,6 +30,22 @@ headers = {
 }
 
 
+# Canonical Book Tracker Status option names. Sentence case matches the
+# in-repo prompt, README, and the other two option names.
+BookStatus = Literal["Available now", "Not available", "All copies in use"]
+BOOK_STATUSES = get_args(BookStatus)
+_ALLOWED_STATUS_TEXT = ", ".join(f'"{s}"' for s in BOOK_STATUSES)
+
+LIBRARIAN_SYSTEM_PROMPT = f"""You are a librarian specializing in searching the library catalog.
+            - Your main tasks: search for books and record results in the Notion database.
+            - Always detect and prioritize catalog queries, even if hidden inside greetings or casual conversation.
+            - Only accept catalog-related queries. For anything else, politely refuse as out of scope and redirect the user back to catalog search.
+            - Refusal template: "I only handle catalog searches—please ask about a book, such as "Atomic Habits".
+            - When there are multiple formats found in the catalog search result, prioritize paperback books over other formats (e-books, audiobooks etc.) and return only the paperback format information (call number, status, location).
+            - Allowed book statuses: {_ALLOWED_STATUS_TEXT}.
+            - After successfully writing a result to Notion, stop."""
+
+
 def create_notion_page(data: dict) -> Response:
     """
     Insert a new entry to a Notion database called Book Tracker when given a dictionary with book title, status, call number, library location and updated date.
@@ -47,7 +64,7 @@ def create_notion_page(data: dict) -> Response:
 def write_to_notion(
     book_title: str,
     call_number: str,
-    status: str,
+    status: BookStatus,
     location: str = "Sunnyvale Public Library",
     date_str: str = None,
 ) -> str:
@@ -59,12 +76,18 @@ def write_to_notion(
         call_number: The library call number
         location: The name of the library
         date_str: The date call the function on
-        status: The availability status, must be among "Available now", "Not Available", "All copies in use".
+        status: The availability status, must be among "Available now", "Not available", "All copies in use".
 
     Returns:
         A message confirming the data was written to Notion
     """
     try:
+        if status not in BOOK_STATUSES:
+            return (
+                f"Error writing to Notion: invalid status {status!r}. "
+                f"Must be one of {_ALLOWED_STATUS_TEXT}."
+            )
+
         if date_str is None:
             date_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -139,18 +162,7 @@ llm_with_tools = llm.bind_tools([search_library_page, write_to_notion])
 
 # Node function
 def tool_calling_llm(state: MessagesState):
-    input_messages = [
-        SystemMessage(
-            content="""You are a librarian specializing in searching the library catalog.
-            - Your main tasks: search for books and record results in the Notion database.
-            - Always detect and prioritize catalog queries, even if hidden inside greetings or casual conversation.
-            - Only accept catalog-related queries. For anything else, politely refuse as out of scope and redirect the user back to catalog search.
-            - Refusal template: "I only handle catalog searches—please ask about a book, such as "Atomic Habits".
-            - When there are multiple formats found in the catalog search result, prioritize paperback books over other formats (e-books, audiobooks etc.) and return only the paperback format information (call number, status, location).
-            - Allowed book statuses: "Available now", "Not available", "All copies in use".
-            - After successfully writing a result to Notion, stop."""
-        )
-    ]
+    input_messages = [SystemMessage(content=LIBRARIAN_SYSTEM_PROMPT)]
 
     return {"messages": [llm_with_tools.invoke(input_messages + state["messages"])]}
 

@@ -90,7 +90,7 @@ Prefer helpers. Live features hit the local LangGraph API; Notion features stay 
 .cursor/skills/verify-librarian/helpers/drive.sh all
 ```
 
-Stable handles: assistant id `librarian`, tool names `search_library_page` and `write_to_notion`, status strings `Available now`, `Not available`, `Not Available`, `All copies in use`, pytest files `tests/test_write_to_notion_statuses.py`, `tests/test_get_pages.py`, `tests/test_no_token_leak.py`.
+Stable handles: assistant id `librarian`, tool names `search_library_page` and `write_to_notion`, status strings `Available now`, `Not available`, `All copies in use`, pytest files `tests/test_write_to_notion_statuses.py`, `tests/test_get_pages.py`, `tests/test_no_token_leak.py`.
 
 Manual live equivalent (only after launch+doctor; still Notion-mocked):
 
