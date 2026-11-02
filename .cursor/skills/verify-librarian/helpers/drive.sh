@@ -68,8 +68,8 @@ drive_graph() {
     --base-url "${base}" \
     --message "Please find The Mom Test at the library" \
     --out "${VERIFY_EVIDENCE}/graph-routing.wait.json"
-  if ! grep -q 'has_tools_to_end.: true' "${VERIFY_EVIDENCE}/graph-routing-edges.stdout.txt"; then
-    append_summary graph-routing fail "compiled graph missing tools -> END"
+  if grep -q 'has_tools_to_end.: true' "${VERIFY_EVIDENCE}/graph-routing-edges.stdout.txt"; then
+    append_summary graph-routing fail "tools -> END edge still present"
     return 2
   fi
   if ! grep -q 'has_tools_to_llm.: true' "${VERIFY_EVIDENCE}/graph-routing-edges.stdout.txt"; then

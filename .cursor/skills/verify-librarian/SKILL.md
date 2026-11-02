@@ -73,7 +73,7 @@ Pass means all of:
 - the pid in `$VERIFY_SCRATCH/langgraph.pid` is alive
 - `GET /ok` on this run's URL succeeds
 - `/assistants` or `/info` is reachable and names `librarian`
-- `librarian.py` still contains both `tools -> tool_calling_llm` and `tools -> END`; compiled `get_graph()` still lists the loop edge
+- `librarian.py` still contains `tools -> tool_calling_llm` and does not contain `tools -> END`; compiled `get_graph()` lists the loop edge only
 
 If doctor fails, relaunch or stop. Do not "fix" it by pointing the graph at a real Notion database.
 

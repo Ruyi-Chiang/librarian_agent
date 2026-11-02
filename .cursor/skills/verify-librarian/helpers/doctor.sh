@@ -71,7 +71,7 @@ if "librarian" not in body:
 print("graph_name_ok librarian")
 PY
 
-# The compiled graph must still contain both outgoing tools edges.
+# The compiled graph must keep tools -> tool_calling_llm and must not add tools -> END.
 PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" "${PY}" "${SKILL_DIR}/helpers/inspect_graph.py" >/dev/null
 
 echo "doctor_ok run_id=${VERIFY_RUN_ID} url=${base} scratch=${VERIFY_SCRATCH}"
