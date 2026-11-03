@@ -11,7 +11,7 @@ A user asks for a book in plain language. The librarian graph turns that into a 
 ## How to get to it (user POV)
 
 - Start `langgraph dev` and open Studio against the local API, graph `librarian`.
-- Reply to the greeting with a catalog request such as `I am looking for Atomic Habits`.
+- Send a catalog request as the first human message, such as `I am looking for Atomic Habits`. `librarian.py` still defines an `initial_state` greeting, but that dict is not passed to `builder.compile()` and is not wired into the compiled graph, so Studio does not greet first.
 - Watch the assistant call `search_library_page` and come back with catalog text.
 - Do not run `python parser.py` as the user path: import executes two `agent.run` calls immediately.
 
@@ -29,6 +29,7 @@ Preconditions:
 ## Gotchas
 
 - `langgraph.json` wires only `./librarian.py:graph`. A green Studio run does not prove `parser.py` still works; it proves the graph's catalog tool.
+- Do not wait for a greeting. `initial_state` exists in `librarian.py` but is unused by the compiled graph; the first human message is the catalog request.
 - `parser.py` calls `agent.run(...)` at module import. Any `import parser` hits OpenAI and the catalog twice. Keep it out of pytest.
 - `get_call_number` looks for `.call-number`; `search_library_page` looks for `cp-search-result-item`. They are different parsers.
 - If no usable model key is in the environment, launch sets `VERIFY_MOCK_LLM=1`. The scripted model still emits a `search_library_page` tool call. Say so in the run notes when that happens.
