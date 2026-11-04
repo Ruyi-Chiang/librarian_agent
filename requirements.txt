@@ -1,0 +1,10 @@
+# Product + unit-test deps for CI (`pytest tests/`).
+# Install: pip install -r requirements.txt
+beautifulsoup4
+langchain-core
+langchain-openai
+langgraph
+pydantic
+pytest
+python-dotenv
+requests
