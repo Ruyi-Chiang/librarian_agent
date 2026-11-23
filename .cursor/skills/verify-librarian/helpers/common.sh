@@ -22,10 +22,12 @@ VERIFY_VENV="${VERIFY_VENV:-${REPO_ROOT}/.venv}"
 SCRATCH_PREFIX="/tmp/verify-librarian-"
 RUN_MARKER="${VERIFY_SCRATCH}/.verify-librarian-run"
 # langgraph-runtime-inmem hardcodes cwd/.langgraph_api (no redirect env/flag).
-LANGGRAPH_API_DIR="${REPO_ROOT}/.langgraph_api"
+# VERIFY_LGAPI_DIR / VERIFY_LGAPI_LOCK are test-only so race/lock helpers can
+# use an isolated cache without touching a developer or in-flight cache.
+LANGGRAPH_API_DIR="${VERIFY_LGAPI_DIR:-${REPO_ROOT}/.langgraph_api}"
 LANGGRAPH_API_OWNED_MARKER="${LANGGRAPH_API_DIR}/.verify-librarian-owned"
 # Lock lives outside .langgraph_api so last-owner rm -rf cannot drop it.
-LANGGRAPH_API_LOCK="/tmp/verify-librarian-lgapi.lock"
+LANGGRAPH_API_LOCK="${VERIFY_LGAPI_LOCK:-/tmp/verify-librarian-lgapi.lock}"
 
 PY="${VERIFY_VENV}/bin/python"
 PYTEST="${VERIFY_VENV}/bin/pytest"
@@ -130,27 +132,31 @@ _langgraph_api_claim_pause() {
 # Prefer flock on a lock file; fall back to mkdir if flock is missing.
 _langgraph_api_with_flock() {
   local lockfile="${LANGGRAPH_API_LOCK}"
-  local lgapi_lock_fd
+  local lgapi_lock_fd status=0
   if [[ -d "${lockfile}" ]]; then
     rmdir "${lockfile}" 2>/dev/null || true
   fi
   : >> "${lockfile}"
   exec {lgapi_lock_fd}>"${lockfile}"
   flock "${lgapi_lock_fd}"
-  "$@"
-  local status=$?
+  "$@" && status=0 || status=$?
   exec {lgapi_lock_fd}>&-
   return "${status}"
 }
 
+_langgraph_api_release_mkdir_lock() {
+  rmdir "${LANGGRAPH_API_LOCK}.d" 2>/dev/null || true
+}
+
 _langgraph_api_with_mkdir_lock() {
   local lockdir="${LANGGRAPH_API_LOCK}.d"
-  local i
+  local i status=0
   for i in $(seq 1 50); do
     if mkdir "${lockdir}" 2>/dev/null; then
-      "$@"
-      local status=$?
+      trap _langgraph_api_release_mkdir_lock EXIT
+      "$@" && status=0 || status=$?
       rmdir "${lockdir}" 2>/dev/null || true
+      trap - EXIT
       return "${status}"
     fi
     sleep 0.1
@@ -160,6 +166,10 @@ _langgraph_api_with_mkdir_lock() {
 }
 
 _langgraph_api_with_lock() {
+  if [[ "${VERIFY_LGAPI_FORCE_MKDIR_LOCK:-}" == "1" ]]; then
+    _langgraph_api_with_mkdir_lock "$@"
+    return
+  fi
   if command -v flock >/dev/null 2>&1; then
     _langgraph_api_with_flock "$@"
     return

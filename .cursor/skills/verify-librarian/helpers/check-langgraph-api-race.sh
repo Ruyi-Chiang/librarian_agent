@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Deterministic create-before-mark race check.
+# Deterministic create-before-mark race check against an isolated cache.
+# Never touches repo-root .langgraph_api (developer Studio cache / live runs).
 # Default: lock held, B blocks then registers, A's cleanup leaves B's files.
 # --bypass-lock: same sequence without the lock; must FAIL (B sees unmarked
 # cache, A's cleanup deletes B's files). That proves the test can catch the race.
 
 set -euo pipefail
 _THIS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-. "${_THIS_DIR}/common.sh"
-cd "${REPO_ROOT}"
 
 bypass=0
 if [[ "${1:-}" == "--bypass-lock" ]]; then
@@ -15,10 +14,21 @@ if [[ "${1:-}" == "--bypass-lock" ]]; then
   export VERIFY_LGAPI_SKIP_LOCK=1
 fi
 
-rm -rf "${LANGGRAPH_API_DIR}"
 work="/tmp/verify-librarian-race-$$"
 rm -rf "${work}"
 mkdir -p "${work}"
+export VERIFY_LGAPI_DIR="${work}/.langgraph_api"
+export VERIFY_LGAPI_LOCK="${work}/verify-librarian-lgapi.lock"
+
+. "${_THIS_DIR}/common.sh"
+
+repo_cache="${REPO_ROOT}/.langgraph_api"
+if [[ "${LANGGRAPH_API_DIR}" == "${repo_cache}" ]]; then
+  echo "refuse: race check must not use repo-root ${repo_cache}" >&2
+  rm -rf "${work}"
+  exit 2
+fi
+
 a_out="${work}/a.out"
 b_out="${work}/b.out"
 
@@ -27,6 +37,7 @@ claim_as() {
   local pause="${2:-}"
   (
     export VERIFY_RUN_ID="${id}"
+    export VERIFY_LGAPI_DIR VERIFY_LGAPI_LOCK
     if [[ -n "${pause}" ]]; then
       export VERIFY_LGAPI_CLAIM_PAUSE="${pause}"
     else
@@ -41,6 +52,7 @@ cleanup_as() {
   local id="$1"
   (
     export VERIFY_RUN_ID="${id}"
+    export VERIFY_LGAPI_DIR VERIFY_LGAPI_LOCK
     unset VERIFY_LGAPI_CLAIM_PAUSE
     . "${_THIS_DIR}/common.sh"
     remove_owned_langgraph_api_dir
@@ -60,7 +72,7 @@ fail() {
 : > "${a_out}"
 : > "${b_out}"
 
-echo "mode=$([ "${bypass}" = 1 ] && echo bypass-lock || echo locked) pause=2"
+echo "mode=$([ "${bypass}" = 1 ] && echo bypass-lock || echo locked) pause=2 isolated=${LANGGRAPH_API_DIR}"
 claim_as race-a 2 >"${a_out}" 2>&1 &
 a_pid=$!
 
@@ -101,7 +113,7 @@ if [[ "${bypass}" == "1" ]]; then
   if [[ -e "${LANGGRAPH_API_DIR}/SENTINEL-B.txt" ]]; then
     fail "expected A's cleanup to delete B's files when B never registered"
   fi
-  rm -rf "${work}" "${LANGGRAPH_API_DIR}"
+  rm -rf "${work}"
   echo "FAIL: lock bypassed; B unmarked; A's cleanup deleted B's files"
   exit 2
 fi
