@@ -21,13 +21,6 @@ VERIFY_EVIDENCE="${VERIFY_EVIDENCE:-${REPO_ROOT}/evidence/runs/${VERIFY_RUN_ID}}
 VERIFY_VENV="${VERIFY_VENV:-${REPO_ROOT}/.venv}"
 SCRATCH_PREFIX="/tmp/verify-librarian-"
 RUN_MARKER="${VERIFY_SCRATCH}/.verify-librarian-run"
-# langgraph-runtime-inmem hardcodes cwd/.langgraph_api (no redirect env/flag).
-# VERIFY_LGAPI_DIR / VERIFY_LGAPI_LOCK are test-only so race/lock helpers can
-# use an isolated cache without touching a developer or in-flight cache.
-LANGGRAPH_API_DIR="${VERIFY_LGAPI_DIR:-${REPO_ROOT}/.langgraph_api}"
-LANGGRAPH_API_OWNED_MARKER="${LANGGRAPH_API_DIR}/.verify-librarian-owned"
-# Lock lives outside .langgraph_api so last-owner rm -rf cannot drop it.
-LANGGRAPH_API_LOCK="${VERIFY_LGAPI_LOCK:-/tmp/verify-librarian-lgapi.lock}"
 
 PY="${VERIFY_VENV}/bin/python"
 PYTEST="${VERIFY_VENV}/bin/pytest"
@@ -35,7 +28,6 @@ LANGGRAPH_BIN="${VERIFY_VENV}/bin/langgraph"
 
 export SKILL_DIR REPO_ROOT VERIFY_RUN_ID VERIFY_SCRATCH VERIFY_EVIDENCE VERIFY_VENV
 export PY PYTEST LANGGRAPH_BIN SCRATCH_PREFIX RUN_MARKER LAST_RUN_FILE
-export LANGGRAPH_API_DIR LANGGRAPH_API_OWNED_MARKER LANGGRAPH_API_LOCK
 
 canonicalize_paths() {
   if [[ -z "${VERIFY_SCRATCH}" ]]; then
@@ -116,137 +108,38 @@ require_our_scratch() {
   fi
 }
 
-# Test-only: sleep between mkdir and the owner-marker write so How to verify
-# can hold run A in the create-before-mark window. The lock stays held.
-_langgraph_api_claim_pause() {
-  local pause="${VERIFY_LGAPI_CLAIM_PAUSE:-}"
-  if [[ -z "${pause}" ]]; then
+kill_run_langgraph() {
+  local pid_file="${VERIFY_SCRATCH}/langgraph.pid"
+  local lg_pid
+  if [[ ! -f "${pid_file}" ]]; then
     return 0
   fi
-  echo "langgraph_api_claim_pause seconds=${pause} path=${LANGGRAPH_API_DIR}"
-  sleep "${pause}"
-}
-
-# Serialize claim and cleanup outside .langgraph_api so mkdir + marker
-# write cannot interleave, and last-owner rm -rf cannot drop the lock.
-# Prefer flock on a lock file; fall back to mkdir if flock is missing.
-_langgraph_api_with_flock() {
-  local lockfile="${LANGGRAPH_API_LOCK}"
-  local lgapi_lock_fd status=0
-  if [[ -d "${lockfile}" ]]; then
-    rmdir "${lockfile}" 2>/dev/null || true
+  lg_pid="$(tr -d '[:space:]' < "${pid_file}")"
+  if [[ -z "${lg_pid}" ]] || ! kill -0 "${lg_pid}" 2>/dev/null; then
+    return 0
   fi
-  : >> "${lockfile}"
-  exec {lgapi_lock_fd}>"${lockfile}"
-  flock "${lgapi_lock_fd}"
-  "$@" && status=0 || status=$?
-  exec {lgapi_lock_fd}>&-
-  return "${status}"
-}
-
-_langgraph_api_release_mkdir_lock() {
-  rmdir "${LANGGRAPH_API_LOCK}.d" 2>/dev/null || true
-}
-
-_langgraph_api_with_mkdir_lock() {
-  local lockdir="${LANGGRAPH_API_LOCK}.d"
-  local i status=0
-  for i in $(seq 1 50); do
-    if mkdir "${lockdir}" 2>/dev/null; then
-      trap _langgraph_api_release_mkdir_lock EXIT
-      "$@" && status=0 || status=$?
-      rmdir "${lockdir}" 2>/dev/null || true
-      trap - EXIT
-      return "${status}"
+  kill "${lg_pid}" 2>/dev/null || true
+  local _
+  for _ in $(seq 1 20); do
+    if ! kill -0 "${lg_pid}" 2>/dev/null; then
+      return 0
     fi
-    sleep 0.1
+    sleep 0.2
   done
-  echo "refuse: could not lock ${lockdir}" >&2
-  return 2
+  kill -9 "${lg_pid}" 2>/dev/null || true
 }
 
-_langgraph_api_with_lock() {
-  if [[ "${VERIFY_LGAPI_FORCE_MKDIR_LOCK:-}" == "1" ]]; then
-    _langgraph_api_with_mkdir_lock "$@"
-    return
-  fi
-  if command -v flock >/dev/null 2>&1; then
-    _langgraph_api_with_flock "$@"
-    return
-  fi
-  _langgraph_api_with_mkdir_lock "$@"
-}
-
-_langgraph_api_owner_count() {
-  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
-    echo 0
+remove_our_scratch() {
+  if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
     return 0
   fi
-  grep -c . "${LANGGRAPH_API_OWNED_MARKER}" || true
-}
-
-_claim_langgraph_api_dir() {
-  if [[ -e "${LANGGRAPH_API_DIR}" && ! -d "${LANGGRAPH_API_DIR}" ]]; then
-    echo "refuse: ${LANGGRAPH_API_DIR} exists and is not a directory" >&2
+  local existing
+  existing="$(scratch_marker_run_id)"
+  if [[ "${existing}" != "${VERIFY_RUN_ID}" ]]; then
+    echo "refuse: will not remove scratch ${VERIFY_SCRATCH} (marker=${existing:-none} run=${VERIFY_RUN_ID})" >&2
     return 2
   fi
-  if [[ ! -d "${LANGGRAPH_API_DIR}" ]]; then
-    mkdir "${LANGGRAPH_API_DIR}"
-    _langgraph_api_claim_pause
-    printf '%s\n' "${VERIFY_RUN_ID}" > "${LANGGRAPH_API_OWNED_MARKER}"
-    echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=1"
-    return 0
-  fi
-  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
-    echo "langgraph_api_unmarked path=${LANGGRAPH_API_DIR}"
-    return 0
-  fi
-  if ! grep -qxF "${VERIFY_RUN_ID}" "${LANGGRAPH_API_OWNED_MARKER}"; then
-    printf '%s\n' "${VERIFY_RUN_ID}" >> "${LANGGRAPH_API_OWNED_MARKER}"
-  fi
-  echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=$(_langgraph_api_owner_count)"
-}
-
-_remove_owned_langgraph_api_dir() {
-  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
-    if [[ -e "${LANGGRAPH_API_DIR}" ]]; then
-      echo "langgraph_api_left path=${LANGGRAPH_API_DIR}"
-    else
-      echo "langgraph_api_absent"
-    fi
-    return 0
-  fi
-  local remaining
-  remaining="$(grep -vxF "${VERIFY_RUN_ID}" "${LANGGRAPH_API_OWNED_MARKER}" || true)"
-  if [[ -z "${remaining}" ]]; then
-    rm -rf "${LANGGRAPH_API_DIR}"
-    echo "langgraph_api_removed path=${LANGGRAPH_API_DIR}"
-    return 0
-  fi
-  printf '%s\n' "${remaining}" > "${LANGGRAPH_API_OWNED_MARKER}"
-  echo "langgraph_api_left path=${LANGGRAPH_API_DIR} remaining_owners=$(_langgraph_api_owner_count)"
-}
-
-# Claim cwd/.langgraph_api only when absent or already marked by this harness.
-# A pre-existing unmarked directory (developer Studio cache) is left untouched.
-# Concurrent verify runs share the directory; each run ID is recorded so
-# cleanup removes it only after the last owner stops.
-claim_langgraph_api_dir() {
-  if [[ "${VERIFY_LGAPI_SKIP_LOCK:-}" == "1" ]]; then
-    _claim_langgraph_api_dir
-    return
-  fi
-  _langgraph_api_with_lock _claim_langgraph_api_dir
-}
-
-# Remove .langgraph_api only when this harness owns it and this run is the
-# last remaining owner. Other active verify runs keep the shared cache.
-remove_owned_langgraph_api_dir() {
-  if [[ "${VERIFY_LGAPI_SKIP_LOCK:-}" == "1" ]]; then
-    _remove_owned_langgraph_api_dir
-    return
-  fi
-  _langgraph_api_with_lock _remove_owned_langgraph_api_dir
+  rm -rf "${VERIFY_SCRATCH}"
 }
 
 capture() {
