@@ -114,21 +114,57 @@ require_our_scratch() {
   fi
 }
 
+# Test-only: sleep between mkdir and the owner-marker write so How to verify
+# can hold run A in the create-before-mark window. The lock stays held.
+_langgraph_api_claim_pause() {
+  local pause="${VERIFY_LGAPI_CLAIM_PAUSE:-}"
+  if [[ -z "${pause}" ]]; then
+    return 0
+  fi
+  echo "langgraph_api_claim_pause seconds=${pause} path=${LANGGRAPH_API_DIR}"
+  sleep "${pause}"
+}
+
 # Serialize claim and cleanup outside .langgraph_api so mkdir + marker
 # write cannot interleave, and last-owner rm -rf cannot drop the lock.
-_langgraph_api_with_lock() {
+# Prefer flock on a lock file; fall back to mkdir if flock is missing.
+_langgraph_api_with_flock() {
+  local lockfile="${LANGGRAPH_API_LOCK}"
+  local lgapi_lock_fd
+  if [[ -d "${lockfile}" ]]; then
+    rmdir "${lockfile}" 2>/dev/null || true
+  fi
+  : >> "${lockfile}"
+  exec {lgapi_lock_fd}>"${lockfile}"
+  flock "${lgapi_lock_fd}"
+  "$@"
+  local status=$?
+  exec {lgapi_lock_fd}>&-
+  return "${status}"
+}
+
+_langgraph_api_with_mkdir_lock() {
+  local lockdir="${LANGGRAPH_API_LOCK}.d"
   local i
   for i in $(seq 1 50); do
-    if mkdir "${LANGGRAPH_API_LOCK}" 2>/dev/null; then
+    if mkdir "${lockdir}" 2>/dev/null; then
       "$@"
       local status=$?
-      rmdir "${LANGGRAPH_API_LOCK}" 2>/dev/null || true
+      rmdir "${lockdir}" 2>/dev/null || true
       return "${status}"
     fi
     sleep 0.1
   done
-  echo "refuse: could not lock ${LANGGRAPH_API_LOCK}" >&2
+  echo "refuse: could not lock ${lockdir}" >&2
   return 2
+}
+
+_langgraph_api_with_lock() {
+  if command -v flock >/dev/null 2>&1; then
+    _langgraph_api_with_flock "$@"
+    return
+  fi
+  _langgraph_api_with_mkdir_lock "$@"
 }
 
 _langgraph_api_owner_count() {
@@ -146,6 +182,7 @@ _claim_langgraph_api_dir() {
   fi
   if [[ ! -d "${LANGGRAPH_API_DIR}" ]]; then
     mkdir "${LANGGRAPH_API_DIR}"
+    _langgraph_api_claim_pause
     printf '%s\n' "${VERIFY_RUN_ID}" > "${LANGGRAPH_API_OWNED_MARKER}"
     echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=1"
     return 0
@@ -185,12 +222,20 @@ _remove_owned_langgraph_api_dir() {
 # Concurrent verify runs share the directory; each run ID is recorded so
 # cleanup removes it only after the last owner stops.
 claim_langgraph_api_dir() {
+  if [[ "${VERIFY_LGAPI_SKIP_LOCK:-}" == "1" ]]; then
+    _claim_langgraph_api_dir
+    return
+  fi
   _langgraph_api_with_lock _claim_langgraph_api_dir
 }
 
 # Remove .langgraph_api only when this harness owns it and this run is the
 # last remaining owner. Other active verify runs keep the shared cache.
 remove_owned_langgraph_api_dir() {
+  if [[ "${VERIFY_LGAPI_SKIP_LOCK:-}" == "1" ]]; then
+    _remove_owned_langgraph_api_dir
+    return
+  fi
   _langgraph_api_with_lock _remove_owned_langgraph_api_dir
 }
 
