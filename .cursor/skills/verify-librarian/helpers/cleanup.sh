@@ -14,8 +14,12 @@ if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
 fi
 require_our_scratch
 
-kill_run_langgraph
-rm -rf "${VERIFY_SCRATCH}"
+_on_cleanup_exit() {
+  kill_run_langgraph || true
+  remove_our_scratch || true
+}
+trap _on_cleanup_exit EXIT
+
 echo "cleanup_ok scratch_removed=${VERIFY_SCRATCH}"
 echo "evidence_kept=${VERIFY_EVIDENCE}"
 

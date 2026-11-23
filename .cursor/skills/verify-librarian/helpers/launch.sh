@@ -5,6 +5,24 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 prepare_scratch
+
+# Failed launch (including /ok never ready) must not leave scratch behind.
+_LAUNCH_KEEP_SCRATCH=0
+_on_launch_exit() {
+  if [[ "${_LAUNCH_KEEP_SCRATCH}" == "1" ]]; then
+    return 0
+  fi
+  kill_run_langgraph || true
+  remove_our_scratch || true
+  echo "launch_fail_scratch_removed=${VERIFY_SCRATCH}"
+}
+trap _on_launch_exit EXIT
+
+# langgraph-runtime-inmem writes cwd/.langgraph_api. Graph/env/dependency paths
+# in langgraph.json also resolve from cwd, so --config from an empty scratch
+# dir fails. Copy the files the graph needs and run with scratch as cwd.
+cp "${REPO_ROOT}/langgraph.json" "${REPO_ROOT}/librarian.py" "${VERIFY_SCRATCH}/"
+
 cd "${REPO_ROOT}"
 
 # Never inherit a real Notion integration into the child. Dummy values plus the
@@ -35,6 +53,7 @@ if [[ -f "${VERIFY_SCRATCH}/langgraph.pid" ]]; then
     if [[ -n "${recorded}" ]]; then
       export VERIFY_LANGGRAPH_PORT="${recorded}"
     fi
+    _LAUNCH_KEEP_SCRATCH=1
     echo "launch_ok reused_pid=${old_pid} url=$(langgraph_url)"
     exit 0
   fi
@@ -68,6 +87,7 @@ printf '%s\n' "${VERIFY_LANGGRAPH_PORT}" > "${VERIFY_SCRATCH}/langgraph.port"
 : > "${VERIFY_SCRATCH}/langgraph.stdout.log"
 : > "${VERIFY_SCRATCH}/langgraph.stderr.log"
 
+cd "${VERIFY_SCRATCH}"
 "${LANGGRAPH_BIN}" dev \
   --no-browser \
   --host 127.0.0.1 \
@@ -75,6 +95,7 @@ printf '%s\n' "${VERIFY_LANGGRAPH_PORT}" > "${VERIFY_SCRATCH}/langgraph.port"
   >"${VERIFY_SCRATCH}/langgraph.stdout.log" \
   2>"${VERIFY_SCRATCH}/langgraph.stderr.log" &
 echo $! > "${VERIFY_SCRATCH}/langgraph.pid"
+cd "${REPO_ROOT}"
 lg_pid="$(tr -d '[:space:]' < "${VERIFY_SCRATCH}/langgraph.pid")"
 
 ready=0
@@ -97,4 +118,5 @@ if [[ "${ready}" != "1" ]]; then
   exit 2
 fi
 
+_LAUNCH_KEEP_SCRATCH=1
 echo "launch_ok pid=${lg_pid} url=$(langgraph_url) mock_llm=${VERIFY_MOCK_LLM:-0} scratch=${VERIFY_SCRATCH}"
