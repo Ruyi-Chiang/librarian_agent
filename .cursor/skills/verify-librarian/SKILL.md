@@ -51,7 +51,7 @@ What it does:
 2. Ensures `.venv` exists and installs [helpers/requirements.txt](helpers/requirements.txt) (harness-only; not a product requirements file).
 3. Exports dummy Notion credentials (never a real integration) and `VERIFY_NOTION_GUARD_LOG`.
 4. If `OPENAI_API_KEY` is missing or is an obvious test stub, sets `VERIFY_MOCK_LLM=1` so `helpers/sitecustomize.py` scripts the model. If a real key is present, the live model is used.
-5. Claims repo-root `.langgraph_api/` when that directory is absent or already marked: records this `VERIFY_RUN_ID` in `.langgraph_api/.verify-librarian-owned`. Concurrent runs share that directory until the last owner cleans up. A pre-existing unmarked Studio cache is left unmarked. `langgraph` has no env var or flag to redirect this cache (inmem runtime hardcodes `cwd/.langgraph_api`).
+5. Claims repo-root `.langgraph_api/` when that directory is absent or already marked: records this `VERIFY_RUN_ID` in `.langgraph_api/.verify-librarian-owned`. Claim and cleanup serialize on a lock outside that directory so mkdir and marker write cannot interleave. Concurrent runs share the cache until the last owner cleans up. A pre-existing unmarked Studio cache is left unmarked. `langgraph` has no env var or flag to redirect this cache (inmem runtime hardcodes `cwd/.langgraph_api`).
 6. Starts `langgraph dev --no-browser --host 127.0.0.1 --port <isolated>` with `PYTHONPATH` pointing at `helpers/` so `sitecustomize.py` loads.
 
 Ready when the script prints `launch_ok` and `GET /ok` on that port succeeds. Teardown is Cleanup (kill only that pid).

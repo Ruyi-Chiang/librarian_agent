@@ -24,6 +24,8 @@ RUN_MARKER="${VERIFY_SCRATCH}/.verify-librarian-run"
 # langgraph-runtime-inmem hardcodes cwd/.langgraph_api (no redirect env/flag).
 LANGGRAPH_API_DIR="${REPO_ROOT}/.langgraph_api"
 LANGGRAPH_API_OWNED_MARKER="${LANGGRAPH_API_DIR}/.verify-librarian-owned"
+# Lock lives outside .langgraph_api so last-owner rm -rf cannot drop it.
+LANGGRAPH_API_LOCK="/tmp/verify-librarian-lgapi.lock"
 
 PY="${VERIFY_VENV}/bin/python"
 PYTEST="${VERIFY_VENV}/bin/pytest"
@@ -31,7 +33,7 @@ LANGGRAPH_BIN="${VERIFY_VENV}/bin/langgraph"
 
 export SKILL_DIR REPO_ROOT VERIFY_RUN_ID VERIFY_SCRATCH VERIFY_EVIDENCE VERIFY_VENV
 export PY PYTEST LANGGRAPH_BIN SCRATCH_PREFIX RUN_MARKER LAST_RUN_FILE
-export LANGGRAPH_API_DIR LANGGRAPH_API_OWNED_MARKER
+export LANGGRAPH_API_DIR LANGGRAPH_API_OWNED_MARKER LANGGRAPH_API_LOCK
 
 canonicalize_paths() {
   if [[ -z "${VERIFY_SCRATCH}" ]]; then
@@ -112,21 +114,20 @@ require_our_scratch() {
   fi
 }
 
-# Serialize owner-list edits. The lock lives inside .langgraph_api and is
-# only used when this harness already owns that directory.
+# Serialize claim and cleanup outside .langgraph_api so mkdir + marker
+# write cannot interleave, and last-owner rm -rf cannot drop the lock.
 _langgraph_api_with_lock() {
-  local lock="${LANGGRAPH_API_DIR}/.verify-librarian-lock"
   local i
   for i in $(seq 1 50); do
-    if mkdir "${lock}" 2>/dev/null; then
+    if mkdir "${LANGGRAPH_API_LOCK}" 2>/dev/null; then
       "$@"
       local status=$?
-      rmdir "${lock}" 2>/dev/null || true
+      rmdir "${LANGGRAPH_API_LOCK}" 2>/dev/null || true
       return "${status}"
     fi
     sleep 0.1
   done
-  echo "refuse: could not lock ${LANGGRAPH_API_DIR} owners" >&2
+  echo "refuse: could not lock ${LANGGRAPH_API_LOCK}" >&2
   return 2
 }
 
@@ -138,15 +139,36 @@ _langgraph_api_owner_count() {
   grep -c . "${LANGGRAPH_API_OWNED_MARKER}" || true
 }
 
-_langgraph_api_add_owner() {
-  if ! grep -qxF "${VERIFY_RUN_ID}" "${LANGGRAPH_API_OWNED_MARKER}" 2>/dev/null; then
+_claim_langgraph_api_dir() {
+  if [[ -e "${LANGGRAPH_API_DIR}" && ! -d "${LANGGRAPH_API_DIR}" ]]; then
+    echo "refuse: ${LANGGRAPH_API_DIR} exists and is not a directory" >&2
+    return 2
+  fi
+  if [[ ! -d "${LANGGRAPH_API_DIR}" ]]; then
+    mkdir "${LANGGRAPH_API_DIR}"
+    printf '%s\n' "${VERIFY_RUN_ID}" > "${LANGGRAPH_API_OWNED_MARKER}"
+    echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=1"
+    return 0
+  fi
+  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
+    echo "langgraph_api_unmarked path=${LANGGRAPH_API_DIR}"
+    return 0
+  fi
+  if ! grep -qxF "${VERIFY_RUN_ID}" "${LANGGRAPH_API_OWNED_MARKER}"; then
     printf '%s\n' "${VERIFY_RUN_ID}" >> "${LANGGRAPH_API_OWNED_MARKER}"
   fi
   echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=$(_langgraph_api_owner_count)"
 }
 
-# Drop this run from the owner list. Remove the directory only when empty.
-_langgraph_api_drop_owner() {
+_remove_owned_langgraph_api_dir() {
+  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
+    if [[ -e "${LANGGRAPH_API_DIR}" ]]; then
+      echo "langgraph_api_left path=${LANGGRAPH_API_DIR}"
+    else
+      echo "langgraph_api_absent"
+    fi
+    return 0
+  fi
   local remaining
   remaining="$(grep -vxF "${VERIFY_RUN_ID}" "${LANGGRAPH_API_OWNED_MARKER}" || true)"
   if [[ -z "${remaining}" ]]; then
@@ -163,36 +185,13 @@ _langgraph_api_drop_owner() {
 # Concurrent verify runs share the directory; each run ID is recorded so
 # cleanup removes it only after the last owner stops.
 claim_langgraph_api_dir() {
-  if [[ -e "${LANGGRAPH_API_DIR}" && ! -d "${LANGGRAPH_API_DIR}" ]]; then
-    echo "refuse: ${LANGGRAPH_API_DIR} exists and is not a directory" >&2
-    return 2
-  fi
-  if mkdir "${LANGGRAPH_API_DIR}" 2>/dev/null; then
-    printf '%s\n' "${VERIFY_RUN_ID}" > "${LANGGRAPH_API_OWNED_MARKER}"
-    echo "langgraph_api_owned path=${LANGGRAPH_API_DIR} owners=1"
-    return 0
-  fi
-  if [[ ! -d "${LANGGRAPH_API_DIR}" ]]; then
-    echo "refuse: ${LANGGRAPH_API_DIR} exists and is not a directory" >&2
-    return 2
-  fi
-  if [[ ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
-    echo "langgraph_api_unmarked path=${LANGGRAPH_API_DIR}"
-    return 0
-  fi
-  _langgraph_api_with_lock _langgraph_api_add_owner
+  _langgraph_api_with_lock _claim_langgraph_api_dir
 }
 
 # Remove .langgraph_api only when this harness owns it and this run is the
 # last remaining owner. Other active verify runs keep the shared cache.
 remove_owned_langgraph_api_dir() {
-  if [[ -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
-    _langgraph_api_with_lock _langgraph_api_drop_owner
-  elif [[ -e "${LANGGRAPH_API_DIR}" ]]; then
-    echo "langgraph_api_left path=${LANGGRAPH_API_DIR}"
-  else
-    echo "langgraph_api_absent"
-  fi
+  _langgraph_api_with_lock _remove_owned_langgraph_api_dir
 }
 
 capture() {
