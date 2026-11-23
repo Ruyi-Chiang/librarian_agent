@@ -108,6 +108,40 @@ require_our_scratch() {
   fi
 }
 
+kill_run_langgraph() {
+  local pid_file="${VERIFY_SCRATCH}/langgraph.pid"
+  local lg_pid
+  if [[ ! -f "${pid_file}" ]]; then
+    return 0
+  fi
+  lg_pid="$(tr -d '[:space:]' < "${pid_file}")"
+  if [[ -z "${lg_pid}" ]] || ! kill -0 "${lg_pid}" 2>/dev/null; then
+    return 0
+  fi
+  kill "${lg_pid}" 2>/dev/null || true
+  local _
+  for _ in $(seq 1 20); do
+    if ! kill -0 "${lg_pid}" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  kill -9 "${lg_pid}" 2>/dev/null || true
+}
+
+remove_our_scratch() {
+  if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
+    return 0
+  fi
+  local existing
+  existing="$(scratch_marker_run_id)"
+  if [[ "${existing}" != "${VERIFY_RUN_ID}" ]]; then
+    echo "refuse: will not remove scratch ${VERIFY_SCRATCH} (marker=${existing:-none} run=${VERIFY_RUN_ID})" >&2
+    return 2
+  fi
+  rm -rf "${VERIFY_SCRATCH}"
+}
+
 capture() {
   local name="$1"
   shift

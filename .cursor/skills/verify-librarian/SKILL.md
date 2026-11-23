@@ -12,7 +12,7 @@ Interview (do not invent past this):
 | Question | This repo |
 |---|---|
 | Surface | Primary: LangGraph Studio against `langgraph dev` (graph `librarian` in `langgraph.json`). Secondary: pytest. `parser.py` is an older standalone catalog script and is **not** loaded by the graph. |
-| Run | `langgraph dev --no-browser` from the repo root after the verify venv is installed. Ready = `GET /ok` on the local API (default Studio port is 2024; this harness picks an isolated port). Needs dummy `NOTION_TOKEN` / `NOTION_DATABASE_ID` so `librarian.py` can import. Model key optional (see Gotchas / Launch). |
+| Run | `langgraph dev --no-browser` from the run's scratch dir (copied `langgraph.json` + `librarian.py`) after the verify venv is installed. Ready = `GET /ok` on the local API (default Studio port is 2024; this harness picks an isolated port). Needs dummy `NOTION_TOKEN` / `NOTION_DATABASE_ID` so `librarian.py` can import. Model key optional (see Gotchas / Launch). |
 | Drive | Live HTTP to the local LangGraph API for parse + graph routing (Notion mocked in-process). Pytest with `requests` mocked for Notion writes, `get_pages`, and the token-leak check. |
 | Observe | HTTP `/ok`, run `messages` / routing trace, compiled graph edges, pytest stdout/exit, Notion-guard log (mocked intercepts only). |
 | Isolate | Yes: unique `VERIFY_RUN_ID`, scratch under `/tmp/verify-librarian-<id>`, isolated port. Do not start a second server on the same port. |
@@ -51,11 +51,12 @@ What it does:
 2. Ensures `.venv` exists and installs [helpers/requirements.txt](helpers/requirements.txt) (harness-only; not a product requirements file).
 3. Exports dummy Notion credentials (never a real integration) and `VERIFY_NOTION_GUARD_LOG`.
 4. If `OPENAI_API_KEY` is missing or is an obvious test stub, sets `VERIFY_MOCK_LLM=1` so `helpers/sitecustomize.py` scripts the model. If a real key is present, the live model is used.
-5. Starts `langgraph dev --no-browser --host 127.0.0.1 --port <isolated>` with `PYTHONPATH` pointing at `helpers/` so `sitecustomize.py` loads.
+5. Copies `langgraph.json` and `librarian.py` into the run scratch dir. `langgraph-runtime-inmem` hardcodes `cwd/.langgraph_api` (no env var or CLI flag). Graph, env, and dependency paths in `langgraph.json` also resolve from cwd, so `langgraph dev --config <repo>/langgraph.json` from an empty scratch dir fails (`./librarian.py` not found). A copied checkout in scratch is the working cwd.
+6. Starts `langgraph dev --no-browser --host 127.0.0.1 --port <isolated>` with cwd=`VERIFY_SCRATCH` and `PYTHONPATH` pointing at `helpers/` so `sitecustomize.py` loads. A failed launch removes scratch on EXIT.
 
-Ready when the script prints `launch_ok` and `GET /ok` on that port succeeds. Teardown is Cleanup (kill only that pid).
+Ready when the script prints `launch_ok` and `GET /ok` on that port succeeds. Teardown is Cleanup (kill only that pid, remove that scratch).
 
-Two verification runs may proceed side by side when each has its own `VERIFY_RUN_ID` and port. They share the repo checkout; they must not share a port or scratch directory.
+Two verification runs may proceed side by side when each has its own `VERIFY_RUN_ID`, port, and scratch cwd. They do not share `.langgraph_api`. A pre-existing repo-root Studio cache is never used.
 
 ## Doctor
 
@@ -131,7 +132,7 @@ Standards:
 .cursor/skills/verify-librarian/helpers/cleanup.sh
 ```
 
-Kills only the `langgraph` pid recorded for this run and deletes `VERIFY_SCRATCH`. Does not delete `VERIFY_EVIDENCE`. After cleanup, confirm `evidence/runs/<VERIFY_RUN_ID>/SUMMARY.md` still exists.
+Kills only the `langgraph` pid recorded for this run and deletes `VERIFY_SCRATCH` (EXIT trap, so a failed cleanup still removes it). That scratch holds this run's `.langgraph_api/`. Does not delete `VERIFY_EVIDENCE` or a repo-root Studio cache. After cleanup, confirm `evidence/runs/<VERIFY_RUN_ID>/SUMMARY.md` still exists.
 
 ## Helpers
 

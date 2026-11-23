@@ -15,7 +15,7 @@ This directory is the maintained source for verifying user-facing behavior of th
 - Start every live recipe from launch+doctor.
 - Prefer `helpers/drive.sh <feature-id>` or `helpers/drive.sh all`.
 - Live features (parse, graph routing) go through the local LangGraph API. Notion features stay in pytest with `requests` mocked.
-- Restoration means `helpers/cleanup.sh`. Do not remove proof artifacts under `evidence/runs/`.
+- Restoration means `helpers/cleanup.sh`. That kills this run's `langgraph` pid and removes this run's scratch (including its `.langgraph_api/`) on EXIT. A repo-root developer Studio cache is not used. Do not remove proof artifacts under `evidence/runs/`.
 
 ## Proof and skip reporting
 
