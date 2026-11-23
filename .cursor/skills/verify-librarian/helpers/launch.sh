@@ -6,6 +6,7 @@ set -euo pipefail
 
 prepare_scratch
 cd "${REPO_ROOT}"
+claim_langgraph_api_dir
 
 # Never inherit a real Notion integration into the child. Dummy values plus the
 # sitecustomize guard mean api.notion.com is not contacted.

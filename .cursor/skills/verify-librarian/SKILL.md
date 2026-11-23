@@ -51,7 +51,8 @@ What it does:
 2. Ensures `.venv` exists and installs [helpers/requirements.txt](helpers/requirements.txt) (harness-only; not a product requirements file).
 3. Exports dummy Notion credentials (never a real integration) and `VERIFY_NOTION_GUARD_LOG`.
 4. If `OPENAI_API_KEY` is missing or is an obvious test stub, sets `VERIFY_MOCK_LLM=1` so `helpers/sitecustomize.py` scripts the model. If a real key is present, the live model is used.
-5. Starts `langgraph dev --no-browser --host 127.0.0.1 --port <isolated>` with `PYTHONPATH` pointing at `helpers/` so `sitecustomize.py` loads.
+5. Claims repo-root `.langgraph_api/` when that directory is absent or already marked: writes `.langgraph_api/.verify-librarian-owned`. A pre-existing unmarked Studio cache is left unmarked. `langgraph` has no env var or flag to redirect this cache (inmem runtime hardcodes `cwd/.langgraph_api`).
+6. Starts `langgraph dev --no-browser --host 127.0.0.1 --port <isolated>` with `PYTHONPATH` pointing at `helpers/` so `sitecustomize.py` loads.
 
 Ready when the script prints `launch_ok` and `GET /ok` on that port succeeds. Teardown is Cleanup (kill only that pid).
 
@@ -131,7 +132,7 @@ Standards:
 .cursor/skills/verify-librarian/helpers/cleanup.sh
 ```
 
-Kills only the `langgraph` pid recorded for this run and deletes `VERIFY_SCRATCH`. Does not delete `VERIFY_EVIDENCE`. After cleanup, confirm `evidence/runs/<VERIFY_RUN_ID>/SUMMARY.md` still exists.
+Kills only the `langgraph` pid recorded for this run and deletes `VERIFY_SCRATCH`. If `.langgraph_api/.verify-librarian-owned` is present, also removes `.langgraph_api/`. A pre-existing unmarked cache is left untouched. Does not delete `VERIFY_EVIDENCE`. After cleanup, confirm `evidence/runs/<VERIFY_RUN_ID>/SUMMARY.md` still exists.
 
 ## Helpers
 

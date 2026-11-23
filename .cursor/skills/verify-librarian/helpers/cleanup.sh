@@ -5,10 +5,12 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 # Fail closed: rejected isolation or a marker/run-id mismatch must not
-# reach kill or rm -rf. Missing scratch is a no-op.
+# reach kill or rm -rf. Missing scratch is a no-op for the pid/scratch, but
+# an owned .langgraph_api is still removed.
 require_isolated_scratch
 if [[ ! -d "${VERIFY_SCRATCH}" ]]; then
   echo "cleanup: no scratch at ${VERIFY_SCRATCH}"
+  remove_owned_langgraph_api_dir
   echo "evidence_kept=${VERIFY_EVIDENCE}"
   exit 0
 fi
@@ -32,6 +34,7 @@ if [[ -f "${pid_file}" ]]; then
 fi
 
 rm -rf "${VERIFY_SCRATCH}"
+remove_owned_langgraph_api_dir
 echo "cleanup_ok scratch_removed=${VERIFY_SCRATCH}"
 echo "evidence_kept=${VERIFY_EVIDENCE}"
 

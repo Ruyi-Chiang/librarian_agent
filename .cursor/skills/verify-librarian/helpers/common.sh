@@ -21,6 +21,9 @@ VERIFY_EVIDENCE="${VERIFY_EVIDENCE:-${REPO_ROOT}/evidence/runs/${VERIFY_RUN_ID}}
 VERIFY_VENV="${VERIFY_VENV:-${REPO_ROOT}/.venv}"
 SCRATCH_PREFIX="/tmp/verify-librarian-"
 RUN_MARKER="${VERIFY_SCRATCH}/.verify-librarian-run"
+# langgraph-runtime-inmem hardcodes cwd/.langgraph_api (no redirect env/flag).
+LANGGRAPH_API_DIR="${REPO_ROOT}/.langgraph_api"
+LANGGRAPH_API_OWNED_MARKER="${LANGGRAPH_API_DIR}/.verify-librarian-owned"
 
 PY="${VERIFY_VENV}/bin/python"
 PYTEST="${VERIFY_VENV}/bin/pytest"
@@ -28,6 +31,7 @@ LANGGRAPH_BIN="${VERIFY_VENV}/bin/langgraph"
 
 export SKILL_DIR REPO_ROOT VERIFY_RUN_ID VERIFY_SCRATCH VERIFY_EVIDENCE VERIFY_VENV
 export PY PYTEST LANGGRAPH_BIN SCRATCH_PREFIX RUN_MARKER LAST_RUN_FILE
+export LANGGRAPH_API_DIR LANGGRAPH_API_OWNED_MARKER
 
 canonicalize_paths() {
   if [[ -z "${VERIFY_SCRATCH}" ]]; then
@@ -105,6 +109,34 @@ require_our_scratch() {
   if [[ "${existing}" != "${VERIFY_RUN_ID}" ]]; then
     echo "refuse: scratch marker is ${existing}, this run is ${VERIFY_RUN_ID}" >&2
     return 2
+  fi
+}
+
+# Claim cwd/.langgraph_api only when absent or already marked by this harness.
+# A pre-existing unmarked directory (developer Studio cache) is left untouched.
+claim_langgraph_api_dir() {
+  if [[ -e "${LANGGRAPH_API_DIR}" && ! -d "${LANGGRAPH_API_DIR}" ]]; then
+    echo "refuse: ${LANGGRAPH_API_DIR} exists and is not a directory" >&2
+    return 2
+  fi
+  if [[ -d "${LANGGRAPH_API_DIR}" && ! -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
+    echo "langgraph_api_unmarked path=${LANGGRAPH_API_DIR}"
+    return 0
+  fi
+  mkdir -p "${LANGGRAPH_API_DIR}"
+  printf '%s\n' "${VERIFY_RUN_ID}" > "${LANGGRAPH_API_OWNED_MARKER}"
+  echo "langgraph_api_owned path=${LANGGRAPH_API_DIR}"
+}
+
+# Remove .langgraph_api only when this harness's ownership marker is present.
+remove_owned_langgraph_api_dir() {
+  if [[ -f "${LANGGRAPH_API_OWNED_MARKER}" ]]; then
+    rm -rf "${LANGGRAPH_API_DIR}"
+    echo "langgraph_api_removed path=${LANGGRAPH_API_DIR}"
+  elif [[ -e "${LANGGRAPH_API_DIR}" ]]; then
+    echo "langgraph_api_left path=${LANGGRAPH_API_DIR}"
+  else
+    echo "langgraph_api_absent"
   fi
 }
 
